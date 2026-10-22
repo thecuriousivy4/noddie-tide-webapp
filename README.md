@@ -1,5 +1,7 @@
 **Noddie** — a heritage register where no dig is permitted unless the elders holding that Country agree. **No nod, no dig.**
 
+**[Live demo](https://noddie.onrender.com/)** · `joan` / `noddie-joan`
+
 ### 1. Vision & originality
 
 In May 2020 Rio Tinto legally destroyed 46,000-year-old rock shelters at Juukan Gorge, using a ministerial consent granted seven years earlier, before excavations revealed what was there.
@@ -27,4 +29,4 @@ Site details are encrypted in the elder's browser under a TideCloak policy; our 
 3. Two elders approve; the permit commits, but the proponent stays blocked until their token is reissued.
 4. Revocation runs in reverse: no one withdraws a permit alone.
 
-**Demo:** [video](demo.mp4) · `npm run verify`: 68 checks.
+[Video](demo.mp4) · `npm run verify`: 68 checks.
