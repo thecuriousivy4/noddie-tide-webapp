@@ -54,6 +54,38 @@ async function createKeys(): Promise<StoredKeys> {
   return stored;
 }
 
+/**
+ * Keys from the environment, for a deployed instance.
+ *
+ * A host with an ephemeral or read-only filesystem cannot keep data/keys.json, and a host
+ * that runs more than one instance must not let them generate different keys: tokens signed
+ * by one would fail verification on another, and ciphertext sealed under one instance's
+ * policy key would be unopenable by the next. NODDIE_KEYS pins them. Generate it with
+ * `npm run keys:export` and set it on the host.
+ *
+ * TIDECLOAK: dead under the real realm, which holds the signing key in the Tide network.
+ */
+function keysFromEnv(): StoredKeys | null {
+  const raw = process.env.NODDIE_KEYS;
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(Buffer.from(raw, "base64").toString("utf8")) as StoredKeys;
+    for (const label of Object.keys(POLICIES)) {
+      if (!parsed.policyKeys[label]) {
+        throw new Error(`NODDIE_KEYS is missing the key for policy "${label}".`);
+      }
+    }
+    return parsed;
+  } catch (err) {
+    // Never fall through to generating a fresh set: that would silently orphan every
+    // sealed record this deployment already holds.
+    throw new Error(
+      `NODDIE_KEYS is set but could not be read (${err instanceof Error ? err.message : err}). ` +
+        "Regenerate it with `npm run keys:export`.",
+    );
+  }
+}
+
 function loadKeys(): StoredKeys | null {
   if (!existsSync(KEYS_PATH)) return null;
   try {
@@ -69,7 +101,7 @@ function loadKeys(): StoredKeys | null {
 }
 
 async function build(): Promise<KeyCache> {
-  const stored = loadKeys() ?? (await createKeys());
+  const stored = keysFromEnv() ?? loadKeys() ?? (await createKeys());
   const signingKey = (await importJWK(stored.privateJwk, "RS256")) as KeyLike;
   const publicKey = (await importJWK(stored.publicJwk, "RS256")) as KeyLike;
   return { stored, signingKey, publicKey };

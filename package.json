@@ -21,6 +21,7 @@
     "setup": "npm run db:up && npm run db:migrate && npm run db:seed",
     "postinstall": "prisma generate",
     "demo": "python scripts/demo-stage.py",
+    "keys:export": "node scripts/export-keys.mjs",
     "verify": "python scripts/flow-check.py",
     "verify:race": "python scripts/chain-race.py"
   },
