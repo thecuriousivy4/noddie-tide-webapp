@@ -1,0 +1,47 @@
+# Noddie — local infrastructure.
+#
+#   docker compose up -d postgres          the register's database (always needed)
+#   docker compose --profile tide up -d    TideCloak identity server (real auth)
+#
+# TideCloak's realm still has to be initialised once with a free dev licence; see
+# README "Set up TideCloak". This file only runs the container it needs.
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: noddie-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: noddie
+      POSTGRES_PASSWORD: noddie
+      POSTGRES_DB: noddie
+    ports:
+      - "5433:5432" # 5433 on the host, to avoid clashing with a local Postgres
+    volumes:
+      - noddie-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U noddie -d noddie"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # TideCloak dev container: identity, IGA change requests/quorum, Forseti policies.
+  # Profile-gated because the app also runs with the clearly-labelled dev identity
+  # path when no realm is configured.
+  tidecloak:
+    image: tideorg/tidecloak-dev:latest
+    container_name: noddie-tidecloak
+    profiles: ["tide"]
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: password
+      KC_HEALTH_ENABLED: "true"
+    volumes:
+      - noddie-tidecloak:/opt/keycloak/data
+
+volumes:
+  noddie-pgdata:
+  noddie-tidecloak:

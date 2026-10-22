@@ -1,0 +1,34 @@
+# dependencies
+/node_modules
+
+# next.js
+/.next/
+/out/
+next-env.d.ts
+
+# production
+/build
+
+# environment
+.env
+.env.local
+.env*.local
+
+# TideCloak client adapter config — downloaded per realm, never committed
+/tidecloak.json
+
+# local runtime state: dev identity keys, Forseti policy bytes, legacy SQLite files
+/data/
+
+# generated Prisma client
+/lib/generated/prisma
+
+# misc
+*.pem
+*.log
+*.tsbuildinfo
+.DS_Store
+
+# large source photos kept at repo root (optimized copies live in public/images)
+/*.jpg
+/*.jpeg

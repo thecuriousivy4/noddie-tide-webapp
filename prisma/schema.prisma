@@ -1,0 +1,257 @@
+// Noddie — a heritage register used by Traditional Owner corporations.
+//
+// Reading rule for this schema: every column that could reveal a protected place is a
+// `sealed*` string holding TideCloak ciphertext (`ms1:` prefix) exactly as `doEncrypt`
+// returned it in the browser. Postgres, Prisma and the app server never parse those
+// strings and hold no key that opens them. Everything else in here is deliberately
+// public: a reference, a generalized zone, a custodian organisation, a state machine.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// Public pressure on a place. Never derived from protected content.
+enum PlaceStatus {
+  WORKS_PROPOSED
+  UNDER_WATCH
+  QUIET
+}
+
+/// The governance state machine (§5). A request only ever moves forward through
+/// these states, and only COMMITTED carries authority.
+enum ChangeState {
+  DRAFT
+  NOTICE_ISSUED
+  PENDING_QUORUM
+  APPROVED
+  REJECTED
+  COMMITTED
+}
+
+enum ChangeType {
+  /// Works affecting a registered place — grants a `permit-<ref>` role on commit.
+  WORKS_PERMIT
+  /// Standing to read a place's restricted cultural layer.
+  RESTRICTED_READ
+  /// Withdraw a previously granted permit role.
+  PERMIT_REVOCATION
+}
+
+enum Decision {
+  APPROVE
+  DENY
+}
+
+enum DocumentKind {
+  WORKS_NOTICE
+  MINISTERIAL_ANNOUNCEMENT
+  PERMIT_INSTRUMENT
+  REFUSAL_NOTICE
+}
+
+/// A Traditional Owner Corporation using the register. Every place belongs to one, and
+/// each corporation sets its OWN consent rule and threshold — the register holds no global
+/// quorum constant, because that rule is the community’s to set and not ours. Adding a
+/// corporation is a row here; nothing in the application is tied to one community.
+model CustodianOrg {
+  id              String  @id
+  name            String
+  contact         String
+  /// Human-readable rule shown in the UI, e.g. "2 of 3 for disclosure and permit".
+  consentRule     String
+  quorumThreshold Int     @default(2)
+  custodianCount  Int     @default(3)
+
+  places         Place[]
+  changeRequests ChangeRequest[]
+
+  @@map("custodian_org")
+}
+
+model Place {
+  id         String @id
+  /// Public reference used everywhere outside the community, e.g. "RB-07".
+  publicRef  String @unique
+  /// Non-sensitive public name. Not the place's recorded name.
+  publicName String
+  /// Coarse land description, e.g. "Rock country". Public.
+  country    String
+  /// Coarse public summary. Deliberately says nothing locating.
+  publicSummary String
+  /// Terrain scene key for the abstract basin render.
+  scene      String @default("ridge")
+  /// Generalized zone cells — never coordinates. Positions are indicative only.
+  zoneCells  String[]
+  status     PlaceStatus @default(QUIET)
+
+  custodianOrgId String
+  custodianOrg   CustodianOrg @relation(fields: [custodianOrgId], references: [id])
+
+  // --- sealed in the browser; opaque here -----------------------------------
+  sealedName         String
+  sealedBoundary     String
+  sealedSignificance String
+  /// Additional restricted cultural layer, sealed under a separate policy.
+  sealedRestricted   String?
+  hasRestricted      Boolean @default(false)
+
+  recordedBySub  String
+  recordedByName String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  changeRequests ChangeRequest[]
+
+  @@index([custodianOrgId])
+  @@map("place")
+}
+
+model ChangeRequest {
+  id      String      @id @default(uuid())
+  /// Short public reference, e.g. "CR-2026-0004".
+  ref     String      @unique
+  placeId String
+  place   Place       @relation(fields: [placeId], references: [id])
+  type    ChangeType
+  state   ChangeState @default(DRAFT)
+
+  title       String
+  description String
+
+  initiatorSub  String
+  initiatorName String
+  /// The role the initiator acted under, recorded from their verified token.
+  initiatorRole String
+
+  /// Who would receive the role if this commits (usually the proponent).
+  subjectSub  String
+  subjectName String
+  /// The realm role that emerges on commit, e.g. "permit-rb07".
+  grantedRole String
+
+  /// Routed community and the threshold that applied at routing time.
+  custodianOrgId  String
+  custodianOrg    CustodianOrg @relation(fields: [custodianOrgId], references: [id])
+  quorumThreshold Int
+
+  /// Proof of notice: SHA-256 of the issued PDF, repeated here for quick display.
+  noticePdfHash  String?
+  noticeIssuedAt DateTime?
+
+  /// Minister consent is recorded as an input, and is never a quorum signature.
+  ministerConsent     Boolean   @default(false)
+  ministerConsentBy   String?
+  ministerConsentAt   DateTime?
+
+  /// Proof of authority: reference to the network-signed grant produced on commit.
+  tideGrantRef String?
+
+  rejectionReason String?
+
+  createdAt   DateTime  @default(now())
+  decidedAt   DateTime?
+  committedAt DateTime?
+
+  approvals Approval[]
+  documents NoticeDocument[]
+
+  @@index([placeId])
+  @@index([state])
+  @@index([subjectSub])
+  @@map("change_request")
+}
+
+/// One custodian's independent decision. Four-eyes: a custodian may hold exactly
+/// one row per request, and the row is written from their own session only.
+model Approval {
+  id              String        @id @default(uuid())
+  changeRequestId String
+  changeRequest   ChangeRequest @relation(fields: [changeRequestId], references: [id], onDelete: Cascade)
+  custodianSub    String
+  custodianName   String
+  decision        Decision
+  /// Reference to the signature the network produced for this approval.
+  signatureRef    String
+  at              DateTime      @default(now())
+
+  @@unique([changeRequestId, custodianSub])
+  @@index([changeRequestId])
+  @@map("approval")
+}
+
+/// A generated instrument. Bytes are kept so a download needs no filesystem, and
+/// the SHA-256 is what the transparency log proves against.
+model NoticeDocument {
+  id              String        @id @default(uuid())
+  changeRequestId String
+  changeRequest   ChangeRequest @relation(fields: [changeRequestId], references: [id], onDelete: Cascade)
+  kind            DocumentKind
+  filename        String
+  sha256          String
+  bytes           Bytes
+  issuedAt        DateTime      @default(now())
+  issuedBySub     String
+  issuedByName    String
+
+  @@index([changeRequestId])
+  @@map("notice_document")
+}
+
+/// Append-only. Nothing in the app updates or deletes a row here; every write is
+/// chained by hash to the one before it, so a gap or an edit is detectable.
+model AuditEvent {
+  seq        Int      @id @default(autoincrement())
+  at         DateTime @default(now())
+  actorSub   String
+  actorName  String
+  actorRoles String[]
+  action     String
+  target     String
+  detail     Json
+  /// sha256(prevHash + canonical(payload)) — the transparency chain.
+  prevHash   String
+  hash       String   @unique
+
+  @@index([action])
+  @@index([at])
+  @@map("audit_event")
+}
+
+/// A proponent's clearance check: which generalized zones they asked about and
+/// which registered places that touched. Public information only.
+model ClearanceCheck {
+  id         String   @id @default(uuid())
+  actorSub   String
+  actorName  String
+  cells      String[]
+  hitRefs    String[]
+  at         DateTime @default(now())
+
+  @@index([actorSub])
+  @@map("clearance_check")
+}
+
+/// Mirror of realm users, for display names and for the simulated identity provider.
+/// Under IDENTITY=tidecloak this table is only a display cache: authority is read from
+/// the verified token and from nowhere else.
+model UserRef {
+  sub      String @id
+  username String @unique
+  name     String
+  /// Simulated-identity roles. Ignored entirely under IDENTITY=tidecloak.
+  devRoles String[]
+  /// scrypt hash + salt for the simulated sign-in form. No password is ever stored.
+  /// TIDECLOAK: both columns become dead under the real realm, which has no passwords.
+  passwordHash String?
+  passwordSalt String?
+  blurb        String   @default("")
+  seeded       Boolean  @default(false)
+  updatedAt    DateTime @updatedAt
+
+  @@map("user_ref")
+}

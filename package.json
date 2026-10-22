@@ -1,0 +1,51 @@
+{
+  "name": "noddie",
+  "version": "0.4.0",
+  "private": true,
+  "description": "Noddie - a heritage register used by Traditional Owner corporations. A permit exists only when the holding community quorum agrees. No nod, no dig.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose down",
+    "db:migrate": "prisma migrate deploy",
+    "db:reset": "prisma migrate reset --force",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:studio": "prisma studio",
+    "db:generate": "prisma generate",
+    "tide:up": "docker compose --profile tide up -d tidecloak",
+    "tide:down": "docker compose --profile tide down",
+    "setup": "npm run db:up && npm run db:migrate && npm run db:seed",
+    "postinstall": "prisma generate",
+    "verify": "python scripts/flow-check.py",
+    "verify:race": "python scripts/chain-race.py"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "^7.10.1",
+    "@prisma/client": "^7.10.1",
+    "@react-three/fiber": "^9.8.2",
+    "@tidecloak/nextjs": "^0.14.40",
+    "framer-motion": "^14.6.0",
+    "jose": "^5.9.6",
+    "lucide-react": "^0.468.0",
+    "next": "^16.4.2",
+    "pdf-lib": "^1.17.1",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "server-only": "^0.0.1",
+    "three": "^0.186.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.7",
+    "@types/react": "^19.0.7",
+    "@types/react-dom": "^19.0.3",
+    "@types/three": "^0.186.0",
+    "dotenv": "^18.0.8",
+    "prisma": "^7.10.1",
+    "tsx": "^4.23.15",
+    "typescript": "^5.7.3"
+  }
+}
