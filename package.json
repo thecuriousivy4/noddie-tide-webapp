@@ -20,6 +20,7 @@
     "tide:down": "docker compose --profile tide down",
     "setup": "npm run db:up && npm run db:migrate && npm run db:seed",
     "postinstall": "prisma generate",
+    "demo": "python scripts/demo-stage.py",
     "verify": "python scripts/flow-check.py",
     "verify:race": "python scripts/chain-race.py"
   },
