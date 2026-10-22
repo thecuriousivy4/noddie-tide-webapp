@@ -1,0 +1,45 @@
+# Render Blueprint. In the Render dashboard: New > Blueprint, point it at this repo.
+#
+# This provisions the web service and the PostgreSQL database together and wires
+# DATABASE_URL between them. Two things are deliberately left to you:
+#
+#   NODDIE_KEYS   marked `sync: false`, so it is never stored in this repo. Generate it
+#                 with `npm run keys:export` and paste it into the dashboard. Without it
+#                 every restart mints a new signing key and orphans the sealed records.
+#
+#   migrate/seed  run once from your machine against the database's External URL:
+#                   DATABASE_URL="<external-url>" npx prisma migrate deploy
+#                   DATABASE_URL="<external-url>" npm run db:seed
+#                 The seed needs tsx (a devDependency), which the build image drops, so
+#                 it is cleaner to run it locally than to bolt it onto buildCommand.
+#
+# Free-tier caveats worth knowing before you put this link in a submission: a free web
+# service sleeps after ~15 minutes idle and the next request pays a cold start of roughly
+# a minute, and a free Postgres instance expires about 30 days after creation. If judges
+# will click the link unattended, the paid starter instance removes both problems.
+
+databases:
+  - name: noddie-db
+    databaseName: noddie
+    user: noddie
+    plan: free
+
+services:
+  - type: web
+    name: noddie
+    runtime: node
+    plan: free
+    # postinstall runs `prisma generate`, so the client is built here too.
+    buildCommand: npm ci && npm run build
+    startCommand: npm run start
+    healthCheckPath: /signin
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: noddie-db
+          property: connectionString
+      - key: IDENTITY
+        value: mock
+      # Secret. Set in the dashboard: `npm run keys:export` prints the value.
+      - key: NODDIE_KEYS
+        sync: false
